@@ -1,0 +1,19 @@
+spring:
+  application.name: TelegramBotForPapaBlinov
+
+telegram:
+  bot:
+    username: Papa_Blinov_Bot
+    token: ${TELEGRAM_BOT_TOKEN:default_value_is_not_set}
+    webhook-path: /webhook
+
+ngrok:
+  url: ${NGROK_URL:default_value_is_not_set}
+
+openai:
+  token: ${OPEN_AI_TOKEN:default_value_if_not_set}
+
+
+
+server:
+  port: 8092
