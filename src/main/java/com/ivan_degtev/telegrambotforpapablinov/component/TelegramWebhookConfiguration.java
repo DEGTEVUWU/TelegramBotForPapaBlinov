@@ -45,10 +45,14 @@ public class TelegramWebhookConfiguration extends TelegramWebhookBot {
     }
 
 
-    public void sendResponseMessage(String chatId, String text) {
+    public void sendResponseMessage(String chatId, String text, Long replyToMessageId) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(text);
+
+        if (replyToMessageId != null) {
+            message.setReplyToMessageId(replyToMessageId.intValue());
+        }
 
         try {
             execute(message);
@@ -57,6 +61,7 @@ public class TelegramWebhookConfiguration extends TelegramWebhookBot {
             log.error("Ошибка при отправке сообщения: " + e.getMessage());
         }
     }
-
-
+    public void sendReplyResponseMessage(String chatId, String text) {
+        sendResponseMessage(chatId, text, null);
+    }
 }

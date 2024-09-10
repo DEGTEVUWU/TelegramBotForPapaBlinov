@@ -9,10 +9,14 @@ public interface TriggersForBotService {
 
     /**
      * Общий метод для подготовки нужных данных и отпраувки в нужные триггеры для првоерки
-     *
-     * @return
      */
     boolean handleMessage(WebhookPayloadDto payload);
+
+    /**
+     * Утилитный метод нужен для определения типа откуда сообщения для последующей разной обработки(на сообщения из групп бот отвечает, из приватных чатов
+     * - просто пишет в чат, без реплаев)
+     */
+    Long getIdMessageForReplay(WebhookPayloadDto payload);
 
     /**
     Метод для проверки упоминается ли бот по нику

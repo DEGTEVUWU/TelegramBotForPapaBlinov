@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 @AllArgsConstructor
 public class TriggersForBotServiceImpl implements TriggersForBotService {
 
+    private final static String BOT_USERNAME = "papa_blinov_bot";
+
     @Override
     public boolean handleMessage(WebhookPayloadDto payload) {
         WebhookPayloadDto.MessageDto message = payload.getMessage();
@@ -25,15 +27,27 @@ public class TriggersForBotServiceImpl implements TriggersForBotService {
             var replyToMessage = payload.getMessage().getReplyToMessage();
 
             Long botId = null;
-            String botUsername = "papa_blinov_bot";
+
 
             if (replyToMessage != null) {
                 botId = replyToMessage.getFrom() != null ? replyToMessage.getFrom().getId() : null;
             }
 
-            return isBotMentioned(message, botUsername) || (botId != null && isReplyToBot(message, botId));
+            return isBotMentioned(message, BOT_USERNAME) || (botId != null && isReplyToBot(message, botId));
         }
         return false;
+    }
+
+
+    @Override
+    public Long getIdMessageForReplay(WebhookPayloadDto payload) {
+        if (payload.getMessage().getChat().getType().equals("private")) {
+            return null;
+        } else if (payload.getMessage().getChat().getType().equals("supergroup")) {
+            return payload.getMessage().getMessageId();
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -56,7 +70,7 @@ public class TriggersForBotServiceImpl implements TriggersForBotService {
     public boolean isReplyToBot(WebhookPayloadDto.MessageDto message, Long botId) {
         WebhookPayloadDto.MessageDto replyToMessage = message.getReplyToMessage();
         if (replyToMessage != null) {
-            return replyToMessage.getFrom() != null && replyToMessage.getFrom().getId().equals(botId);
+            return replyToMessage.getFrom() != null && replyToMessage.getFrom().getUsername().equals(BOT_USERNAME);
         }
         return false;
     }

@@ -9,8 +9,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class ExternalAPIConfiguration {
 
     @Bean
-    public WebClient.Builder webClientBuilder() {
-        return WebClient.builder();
+    public WebClient webClient(WebClient.Builder builder) {
+        return builder.build();
     }
 
     @Bean

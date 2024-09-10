@@ -5,10 +5,10 @@ import com.ivan_degtev.telegrambotforpapablinov.mapper.WebhookMapper;
 import com.ivan_degtev.telegrambotforpapablinov.service.TelegramService;
 import com.ivan_degtev.telegrambotforpapablinov.service.TriggersForBotService;
 import com.ivan_degtev.telegrambotforpapablinov.service.UpdateIdService;
+import com.ivan_degtev.telegrambotforpapablinov.service.ai.OpenAiServiceImpl;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.generics.Webhook;
 
 @Service
 @Slf4j
@@ -38,10 +38,12 @@ public class TelegramServiceImpl implements TelegramService {
 
         String textMessage = webhookPayloadDto.getMessage().getText();
         String chatId = String.valueOf(webhookPayloadDto.getMessage().getChat().getId());
+        String fromId = String.valueOf(webhookPayloadDto.getMessage().getFrom().getId());
 
         if (textMessage != null && !textMessage.isEmpty()) {
             if (triggersForBotService.handleMessage(webhookPayloadDto)) {
-                openAiServiceImpl.sendMessage(chatId, textMessage);
+                Long replayMessageId = triggersForBotService.getIdMessageForReplay(webhookPayloadDto);
+                openAiServiceImpl.getAnswerFromLlm(chatId, fromId, textMessage, replayMessageId);
             }
         } else {
             log.info("Получено сообщение без текста или это системное сообщение. {}", webhookPayloadDto.toString());
