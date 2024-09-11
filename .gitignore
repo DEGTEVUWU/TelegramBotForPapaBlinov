@@ -3,8 +3,8 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-src/resources/google/oauth/
-src/resources/files/
+src/main/resources/google/oauth/
+src/main/resources/files/
 /logs
 
 
