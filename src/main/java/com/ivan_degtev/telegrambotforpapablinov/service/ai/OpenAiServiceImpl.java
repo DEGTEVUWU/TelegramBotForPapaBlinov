@@ -1,6 +1,7 @@
 package com.ivan_degtev.telegrambotforpapablinov.service.ai;
 
 import com.ivan_degtev.telegrambotforpapablinov.component.TelegramWebhookConfiguration;
+import com.ivan_degtev.telegrambotforpapablinov.dto.mapping.WebhookPayloadDto;
 import com.ivan_degtev.telegrambotforpapablinov.service.OpenAiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,15 +14,22 @@ public class OpenAiServiceImpl implements OpenAiService {
 
     private final Assistant assistant;
     private final TelegramWebhookConfiguration telegramWebhookConfiguration;
-    private final OpenAiCustomAssistantClient openAiCustomAssistantClient;
+    private final ProcessingRegularRequestsService processingRegularRequestsService;
+    private final ProcessingSearchRequestsService processingSearchRequestsService;
 
     @Override
-    public void getAnswerFromLlm(String chatId, String fromId, String question, Long replayMessageId) {
+    public void getAnswerFromLlm(String chatId, String fromId, String question, Long replayMessageId, boolean isSearchRequest) {
 //        String llmAnswer = assistant.chat(fromId, chatId, question);
-        String llmAnswer = openAiCustomAssistantClient.createRequestGetResponse(Long.valueOf(fromId), question);
+        String llmAnswer = processingRegularRequestsService.createRequestGetResponse(Long.valueOf(fromId), question, isSearchRequest);
         log.info("Ответ от ллм {}", llmAnswer);
 
         sendMessage(chatId, llmAnswer, replayMessageId);
+    }
+
+    @Override
+    public void searchFilesForRequest(String query) {
+//        String llmAnswer = processingRegularRequestsService.searchFileIds(query);
+//        log.info("Ответ от ллм по поиску файлов {}", llmAnswer);
     }
 
     @Override

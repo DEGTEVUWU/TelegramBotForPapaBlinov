@@ -38,6 +38,12 @@ public class TriggersForBotServiceImpl implements TriggersForBotService {
         return false;
     }
 
+    @Override
+    public boolean isSearchRequest(WebhookPayloadDto payload) {
+        String text = payload.getMessage().getText();
+
+        return text != null && text.toLowerCase().contains("@search");
+    }
 
     @Override
     public Long getIdMessageForReplay(WebhookPayloadDto payload) {

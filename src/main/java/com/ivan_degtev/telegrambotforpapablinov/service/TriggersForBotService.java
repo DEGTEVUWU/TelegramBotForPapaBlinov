@@ -13,6 +13,10 @@ public interface TriggersForBotService {
     boolean handleMessage(WebhookPayloadDto payload);
 
     /**
+     * Метод для проверки есть ли в тексте комадна для поиска @search
+     */
+    boolean isSearchRequest(WebhookPayloadDto payload);
+    /**
      * Утилитный метод нужен для определения типа откуда сообщения для последующей разной обработки(на сообщения из групп бот отвечает, из приватных чатов
      * - просто пишет в чат, без реплаев)
      */

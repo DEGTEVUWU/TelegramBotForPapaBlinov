@@ -43,7 +43,9 @@ public class TelegramServiceImpl implements TelegramService {
         if (textMessage != null && !textMessage.isEmpty()) {
             if (triggersForBotService.handleMessage(webhookPayloadDto)) {
                 Long replayMessageId = triggersForBotService.getIdMessageForReplay(webhookPayloadDto);
-                openAiServiceImpl.getAnswerFromLlm(chatId, fromId, textMessage, replayMessageId);
+
+                boolean isSearchRequest = triggersForBotService.isSearchRequest(webhookPayloadDto);
+                openAiServiceImpl.getAnswerFromLlm(chatId, fromId, textMessage, replayMessageId, isSearchRequest);
             }
         } else {
             log.info("Получено сообщение без текста или это системное сообщение. {}", webhookPayloadDto.toString());

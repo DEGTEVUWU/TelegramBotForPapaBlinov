@@ -2,7 +2,6 @@ package com.ivan_degtev.telegrambotforpapablinov.service.ai;
 
 import com.ivan_degtev.telegrambotforpapablinov.exception.LlmQuerySyntaxException;
 import com.ivan_degtev.telegrambotforpapablinov.mapper.OpenAiMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -14,13 +13,14 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
 @Slf4j
-public class OpenAiCustomAssistantClient {
+public class ProcessingRegularRequestsService {
 
     @Value("${openai.token}")
     private String openAiToken;
@@ -28,17 +28,24 @@ public class OpenAiCustomAssistantClient {
     private final OpenAiMapper openAiMapper;
 
     @Lazy private final OpenAiMemoryControlServiceImpl openAiMemoryControlService;
+    private final ProcessingSearchRequestsService processingSearchRequestsService;
 
-    private final static String assistantId = "asst_TMo9HU85ItAzi87f2fMeSheQ";
+    private final static String ASSISTANT_ID = "asst_TMo9HU85ItAzi87f2fMeSheQ";
+    private final static String VECTOR_STORE_ID = "vs_wNzBgdtEtTf1cT1G6GifHZSn";
+    private final static String SYSTEM_MESSAGE_FOR_SEARCH_ID_FILES = """
+            Пользователь ищет актуальные файлы из векторного хранилища по своему запросу. Тебе нужно проанализировать его запрос и выдать только внутренние id пяти 
+            самых подходящих файлов из твоего внутреннего хранилища. Выдать нужно в формате json: \"имя_файла_в_хранилище\":\"id_файла_в_хранилище\".
+            """;
 
     private final static Map<Long, String> userThreads = new HashMap<>();
     private final static Map<Long, Integer> summaryMessagesForUser = new HashMap<>();
 
-    public OpenAiCustomAssistantClient(
+    public ProcessingRegularRequestsService(
             @Value("${openai.token}") String openAiToken,
             OpenAiMapper openAiMapper,
             WebClient.Builder webClient,
-            @Lazy OpenAiMemoryControlServiceImpl openAiMemoryControlService
+            @Lazy OpenAiMemoryControlServiceImpl openAiMemoryControlService,
+            ProcessingSearchRequestsService processingSearchRequestsService
     ) {
         this.openAiToken = openAiToken;
         this.openAiMapper = openAiMapper;
@@ -46,9 +53,10 @@ public class OpenAiCustomAssistantClient {
                 .baseUrl("https://api.openai.com")
                 .build();
         this.openAiMemoryControlService = openAiMemoryControlService;
+        this.processingSearchRequestsService = processingSearchRequestsService;
     }
 
-    public String createRequestGetResponse(Long fromId, String question) {
+    public String createRequestGetResponse(Long fromId, String question, boolean isSearchRequest) {
         try {
             String threadId = userThreads.get(fromId);
             if (threadId == null) {
@@ -62,8 +70,10 @@ public class OpenAiCustomAssistantClient {
                 threadId = userThreads.get(fromId);
             }
 
-            String jsonResponseCreateMessage = createResponseMessage(threadId, question);
-            String responseMessageId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateMessage); //id сообщения - вопроса
+
+
+            String jsonResponseCreateMessage = createResponseMessage(threadId, question, isSearchRequest);
+            String responseMessageId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateMessage);
 
             String jsonResponseCreateRun = runThread(threadId);
             String responseRunId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateRun);
@@ -75,6 +85,10 @@ public class OpenAiCustomAssistantClient {
 
                 String jsonResponseGetMessage = getMessage(threadId, responseIdAnswer);
                 String responseLlm = openAiMapper.extractDataFromLlmAnswer(jsonResponseGetMessage);
+                if (isSearchRequest) {
+                    Map<String, String> filesData = openAiMapper.extractFileIds(responseLlm);
+                    processingSearchRequestsService.preparingDataForDownloadingFiles(filesData);
+                }
                 log.info("Получил ответ от ллм по сути вопроса замапленный: {}", responseLlm);
 
                 return responseLlm;
@@ -139,6 +153,34 @@ public class OpenAiCustomAssistantClient {
         return false;
     }
 
+//    public List<String> searchFiles(String threadId, String query) {
+//        log.info("Поиск файлов по запросу: {}", query);
+//        try {
+//            String response = webClient.post()
+//                    .uri(uriBuilder -> uriBuilder
+//                            .path("/v1/threads/{threadId}/file_search")
+//                            .build(threadId))
+//                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + openAiToken)
+//                    .header("OpenAI-Beta", "assistants=v2")
+//                    .contentType(MediaType.APPLICATION_JSON)
+//                    .bodyValue(Map.of(
+//                            "assistant_id", assistantId,
+//                            "query", query,
+//                            "vector_store_id", vectorStoreId
+//                    ))
+//                    .retrieve()
+//                    .bodyToMono(String.class)
+//                    .block();
+//
+//            return openAiMapper.extractFileIds(response);
+//        } catch (WebClientResponseException e) {
+//            log.error("Ошибка при поиске файлов: {}", e.getResponseBodyAsString());
+//            return Collections.emptyList();
+//        } catch (Exception e) {
+//            log.error("Непредвиденная ошибка при поиске файлов", e);
+//            return Collections.emptyList();
+//        }
+//    }
 
     /**
      * Утилитный метод для создания нового треда для экономии токенов и передачи в него резюме прошлого контекста общения, срабатывает после 10 вопросов в текущем треде
@@ -151,7 +193,7 @@ public class OpenAiCustomAssistantClient {
                 .header("Authorization", "Bearer " + openAiToken)
                 .header("Content-Type", "application/json")
                 .bodyValue(Map.of(
-                        "assistant_id", assistantId,
+                        "assistant_id", ASSISTANT_ID,
                         "messages", List.of(
                                 Map.of("role", "assistant", "content", "Вот что мы обсудили на данный момент: " + summary)
                         )
@@ -175,11 +217,26 @@ public class OpenAiCustomAssistantClient {
         return response;
     }
 
+    /**
+     * Утилитный метод для получения всех ассистентов по айди данной компании в open ai
+     */
     public String getCompanyAssistants() {
         return webClient.get()
                 .uri("/v1/assistants")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + openAiToken)
                 .header("OpenAI-Beta", "assistants=v2")
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+    }
+    /**
+     * Утилитный метод для получения всех ассистентов по айди данной компании в open ai
+     */
+    public String getCompanyFiles() {
+        return webClient.get()
+                .uri("/v1/files")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + openAiToken)
+//                .header("OpenAI-Beta", "assistants=v2")
                 .retrieve()
                 .bodyToMono(String.class)
                 .block();
@@ -203,7 +260,16 @@ public class OpenAiCustomAssistantClient {
     /**
      * Метод по созданию сообщения-вопрос к ллм, для помещения его после в тред
      */
-    public String createResponseMessage(String threadId, String userMessage) {
+    public String createResponseMessage(String threadId, String userMessage, boolean isSearchRequest) {
+        Map<String, String> messages = new HashMap<>();
+
+        if (isSearchRequest) {
+            messages = Map.of("role", "user", "content", SYSTEM_MESSAGE_FOR_SEARCH_ID_FILES + "Запрос пользователя: " + userMessage);
+//            messages.add(Map.of("role", "user", "content", "Запрос пользователя на поиск: " + userMessage));
+        } else {
+            messages = Map.of("role", "user", "content", userMessage);
+        }
+
         return webClient.post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/v1/threads/{threadId}/messages")
@@ -211,7 +277,7 @@ public class OpenAiCustomAssistantClient {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + openAiToken)
                 .header("OpenAI-Beta", "assistants=v2")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("role", "user", "content", userMessage))
+                .bodyValue(messages)
                 .retrieve()
                 .bodyToMono(String.class)
                 .block();
@@ -232,7 +298,7 @@ public class OpenAiCustomAssistantClient {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + openAiToken)
                     .header("OpenAI-Beta", "assistants=v2")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(Map.of("assistant_id", assistantId))
+                    .bodyValue(Map.of("assistant_id", ASSISTANT_ID))
                     .retrieve()
                     .bodyToMono(String.class)
                     .block();

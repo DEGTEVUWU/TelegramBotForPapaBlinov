@@ -1,13 +1,15 @@
 package com.ivan_degtev.telegrambotforpapablinov.mapper;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
@@ -95,4 +97,38 @@ public class OpenAiMapper {
         return conversation;
     }
 
+    /**
+     * Метод выделяет JSON из строки, парсит его и возвращает Map с именами файлов и их ID.
+     *
+     * @param response Строка, содержащая JSON.
+     * @return Map с ключами (именами файлов) и значениями (их ID).
+     */
+    public Map<String, String> extractFileIds(String response) {
+        try {
+            Pattern jsonPattern = Pattern.compile("\\{.*?\\}", Pattern.DOTALL);
+            Matcher matcher = jsonPattern.matcher(response);
+
+            if (matcher.find()) {
+                String jsonString = matcher.group();
+                JsonNode rootNode = objectMapper.readTree(jsonString);
+
+                Map<String, String> fileMap = new HashMap<>();
+                Iterator<Map.Entry<String, JsonNode>> fields = rootNode.fields();
+                while (fields.hasNext()) {
+                    Map.Entry<String, JsonNode> field = fields.next();
+                    String fileName = field.getKey();
+                    String fileId = field.getValue().asText();
+                    fileMap.put(fileName, fileId);
+                }
+                log.info("Найденные ID файлов: {}", fileMap);
+                return fileMap;
+            } else {
+                log.warn("JSON не найден в строке.");
+                return Collections.emptyMap();
+            }
+        } catch (Exception e) {
+            log.error("Ошибка при парсинге ответа на запрос поиска файлов", e);
+            return Collections.emptyMap();
+        }
+    }
 }

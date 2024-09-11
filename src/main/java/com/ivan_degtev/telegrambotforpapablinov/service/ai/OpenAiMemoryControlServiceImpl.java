@@ -17,7 +17,7 @@ public class OpenAiMemoryControlServiceImpl {
     private String openAiToken;
 
     private final WebClient webClient;
-    private final OpenAiCustomAssistantClient openAiCustomAssistantClient;
+    private final ProcessingRegularRequestsService processingRegularRequestsService;
     private final OpenAiMapper openAiMapper;
 
     private final static String assistantId = "asst_TMo9HU85ItAzi87f2fMeSheQ";
@@ -26,14 +26,14 @@ public class OpenAiMemoryControlServiceImpl {
             @Value("${openai.token}") String openAiToken,
             OpenAiMapper openAiMapper,
             WebClient.Builder webClient,
-            OpenAiCustomAssistantClient openAiCustomAssistantClient
+            ProcessingRegularRequestsService processingRegularRequestsService
     ) {
         this.openAiToken = openAiToken;
         this.openAiMapper = openAiMapper;
         this.webClient = webClient
                 .baseUrl("https://api.openai.com")
                 .build();
-        this.openAiCustomAssistantClient = openAiCustomAssistantClient;
+        this.processingRegularRequestsService = processingRegularRequestsService;
     }
 
 
@@ -71,7 +71,7 @@ public class OpenAiMemoryControlServiceImpl {
      * @return
      */
     private StringBuilder getThreadMessages(String threadId) {
-        String allMessages = openAiCustomAssistantClient.getMessages(threadId);
+        String allMessages = processingRegularRequestsService.getMessages(threadId);
         StringBuilder mapWithMessages = openAiMapper.extractRoleAndContentFromMemory(allMessages);
         return mapWithMessages;
     }
