@@ -6,10 +6,14 @@ import org.springframework.stereotype.Component;
 
 import org.telegram.telegrambots.bots.TelegramWebhookBot;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updates.SetWebhook;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+
+import java.io.File;
 
 @Component
 @Slf4j
@@ -61,6 +65,25 @@ public class TelegramWebhookConfiguration extends TelegramWebhookBot {
             log.error("Ошибка при отправке сообщения: " + e.getMessage());
         }
     }
+
+    public void sendDocument(String chatId, File file, Long replyToMessageId) {
+        SendDocument document = new SendDocument();
+        document.setChatId(chatId);
+        document.setDocument(new InputFile(file));
+
+        if (replyToMessageId != null) {
+            document.setReplyToMessageId(replyToMessageId.intValue());
+        }
+
+        try {
+            execute(document);
+            log.info("Файл отправлен: " + file.getName());
+        } catch (TelegramApiException e) {
+            log.error("Ошибка при отправке файла: " + e.getMessage());
+        }
+    }
+
+
     public void sendReplyResponseMessage(String chatId, String text) {
         sendResponseMessage(chatId, text, null);
     }

@@ -19,23 +19,22 @@ public class OpenAiServiceImpl implements OpenAiService {
 
     @Override
     public void getAnswerFromLlm(String chatId, String fromId, String question, Long replayMessageId, boolean isSearchRequest) {
-//        String llmAnswer = assistant.chat(fromId, chatId, question);
-        String llmAnswer = processingRegularRequestsService.createRequestGetResponse(Long.valueOf(fromId), question, isSearchRequest);
-        log.info("Ответ от ллм {}", llmAnswer);
+        processingRegularRequestsService.createRequestGetResponse(chatId, Long.valueOf(fromId), question, replayMessageId, isSearchRequest);
+//        log.info("Ответ от ллм {}", llmAnswer);
 
-        sendMessage(chatId, llmAnswer, replayMessageId);
+//        sendMessage(chatId, llmAnswer, replayMessageId);
     }
 
-    @Override
-    public void searchFilesForRequest(String query) {
-//        String llmAnswer = processingRegularRequestsService.searchFileIds(query);
-//        log.info("Ответ от ллм по поиску файлов {}", llmAnswer);
-    }
+//    @Override
+//    public void searchFilesForRequest(String query) {
+////        String llmAnswer = processingRegularRequestsService.searchFileIds(query);
+////        log.info("Ответ от ллм по поиску файлов {}", llmAnswer);
+//    }
 
-    @Override
-    public void sendMessage(String chatId, String llmAnswer, Long replayMessageId) {
-
-        telegramWebhookConfiguration.sendResponseMessage(chatId, llmAnswer, replayMessageId);
-
-    }
+//    @Override
+//    public void sendMessage(String chatId, String llmAnswer, Long replayMessageId) {
+//
+//        telegramWebhookConfiguration.sendResponseMessage(chatId, llmAnswer, replayMessageId);
+//
+//    }
 }

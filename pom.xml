@@ -37,6 +37,11 @@
         <langchain4j.open.ai.version>0.33.0</langchain4j.open.ai.version>
         <langchain4j.embeddings.version>0.33.0</langchain4j.embeddings.version>
         <map.db.version>3.1.0</map.db.version>
+
+        <google.api.client>2.2.0</google.api.client>
+        <google.oauth.client>1.34.1</google.oauth.client>
+        <google.api.drive>v3-rev197-1.25.0</google.api.drive>
+        <google.client.jackson2>1.44.2</google.client.jackson2>
     </properties>
 
     <dependencies>
@@ -96,6 +101,27 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
             <version>${jackson.annotation.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client</artifactId>
+            <version>${google.api.client}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.oauth-client</groupId>
+            <artifactId>google-oauth-client-jetty</artifactId>
+            <version>${google.oauth.client}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-drive</artifactId>
+            <version>${google.api.drive}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.http-client</groupId>
+            <artifactId>google-http-client-jackson2</artifactId>
+            <version>${google.client.jackson2}</version>
         </dependency>
 
         <dependency>

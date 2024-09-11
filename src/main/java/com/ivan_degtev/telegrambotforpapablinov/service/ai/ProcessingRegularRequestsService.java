@@ -1,5 +1,6 @@
 package com.ivan_degtev.telegrambotforpapablinov.service.ai;
 
+import com.ivan_degtev.telegrambotforpapablinov.component.TelegramWebhookConfiguration;
 import com.ivan_degtev.telegrambotforpapablinov.exception.LlmQuerySyntaxException;
 import com.ivan_degtev.telegrambotforpapablinov.mapper.OpenAiMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import java.util.Map;
 @Slf4j
 public class ProcessingRegularRequestsService {
 
+    private final TelegramWebhookConfiguration telegramWebhookConfiguration;
     @Value("${openai.token}")
     private String openAiToken;
     private final WebClient webClient;
@@ -33,8 +35,9 @@ public class ProcessingRegularRequestsService {
     private final static String ASSISTANT_ID = "asst_TMo9HU85ItAzi87f2fMeSheQ";
     private final static String VECTOR_STORE_ID = "vs_wNzBgdtEtTf1cT1G6GifHZSn";
     private final static String SYSTEM_MESSAGE_FOR_SEARCH_ID_FILES = """
-            Пользователь ищет актуальные файлы из векторного хранилища по своему запросу. Тебе нужно проанализировать его запрос и выдать только внутренние id пяти 
-            самых подходящих файлов из твоего внутреннего хранилища. Выдать нужно в формате json: \"имя_файла_в_хранилище\":\"id_файла_в_хранилище\".
+            Пользователь ищет актуальные файлы из векторного хранилища по своему запросу. Тебе нужно проанализировать его запрос, найти 5 самых подходящих файла 
+            и выдать только их внутренние названия и id без изменений! Выдать нужно в формате json, но без изменения названий файлов! 
+            Пример: \"Имя файла в хранилище.docx\":\"id_файла_в_хранилище\".
             """;
 
     private final static Map<Long, String> userThreads = new HashMap<>();
@@ -45,8 +48,8 @@ public class ProcessingRegularRequestsService {
             OpenAiMapper openAiMapper,
             WebClient.Builder webClient,
             @Lazy OpenAiMemoryControlServiceImpl openAiMemoryControlService,
-            ProcessingSearchRequestsService processingSearchRequestsService
-    ) {
+            ProcessingSearchRequestsService processingSearchRequestsService,
+            TelegramWebhookConfiguration telegramWebhookConfiguration) {
         this.openAiToken = openAiToken;
         this.openAiMapper = openAiMapper;
         this.webClient = webClient
@@ -54,9 +57,10 @@ public class ProcessingRegularRequestsService {
                 .build();
         this.openAiMemoryControlService = openAiMemoryControlService;
         this.processingSearchRequestsService = processingSearchRequestsService;
+        this.telegramWebhookConfiguration = telegramWebhookConfiguration;
     }
 
-    public String createRequestGetResponse(Long fromId, String question, boolean isSearchRequest) {
+    public void createRequestGetResponse(String chatId, Long fromId, String question, Long replayMessageId, boolean isSearchRequest) {
         try {
             String threadId = userThreads.get(fromId);
             if (threadId == null) {
@@ -70,14 +74,11 @@ public class ProcessingRegularRequestsService {
                 threadId = userThreads.get(fromId);
             }
 
-
-
             String jsonResponseCreateMessage = createResponseMessage(threadId, question, isSearchRequest);
             String responseMessageId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateMessage);
 
             String jsonResponseCreateRun = runThread(threadId);
             String responseRunId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateRun);
-
 
             if (checkStatusReceivingResponse(threadId, responseRunId)) {
                 String jsonResponseGetMessages = getMessages(threadId);
@@ -87,11 +88,12 @@ public class ProcessingRegularRequestsService {
                 String responseLlm = openAiMapper.extractDataFromLlmAnswer(jsonResponseGetMessage);
                 if (isSearchRequest) {
                     Map<String, String> filesData = openAiMapper.extractFileIds(responseLlm);
-                    processingSearchRequestsService.preparingDataForDownloadingFiles(filesData);
+                    processingSearchRequestsService.preparingDataForDownloadingFiles(filesData, chatId, replayMessageId);
+                    return;
                 }
                 log.info("Получил ответ от ллм по сути вопроса замапленный: {}", responseLlm);
 
-                return responseLlm;
+                telegramWebhookConfiguration.sendResponseMessage(chatId, responseLlm, replayMessageId);
             }
         } catch (LlmQuerySyntaxException ex) {
             throw new LlmQuerySyntaxException("Ошибка в последовательности запросов к Open AI для работы с ассистентом");
@@ -136,8 +138,8 @@ public class ProcessingRegularRequestsService {
                 return true;
             }
 
-            if (Duration.between(startTime, Instant.now()).getSeconds() > 60) {
-                log.warn("Timeout reached while waiting for completion status.");
+            if (Duration.between(startTime, Instant.now()).getSeconds() > 120) {
+                log.error("Timeout reached while waiting for completion status.");
                 throw new LlmQuerySyntaxException("Время ожидания превышено, статус не стал 'completed'.");
             }
 
@@ -152,35 +154,6 @@ public class ProcessingRegularRequestsService {
 
         return false;
     }
-
-//    public List<String> searchFiles(String threadId, String query) {
-//        log.info("Поиск файлов по запросу: {}", query);
-//        try {
-//            String response = webClient.post()
-//                    .uri(uriBuilder -> uriBuilder
-//                            .path("/v1/threads/{threadId}/file_search")
-//                            .build(threadId))
-//                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + openAiToken)
-//                    .header("OpenAI-Beta", "assistants=v2")
-//                    .contentType(MediaType.APPLICATION_JSON)
-//                    .bodyValue(Map.of(
-//                            "assistant_id", assistantId,
-//                            "query", query,
-//                            "vector_store_id", vectorStoreId
-//                    ))
-//                    .retrieve()
-//                    .bodyToMono(String.class)
-//                    .block();
-//
-//            return openAiMapper.extractFileIds(response);
-//        } catch (WebClientResponseException e) {
-//            log.error("Ошибка при поиске файлов: {}", e.getResponseBodyAsString());
-//            return Collections.emptyList();
-//        } catch (Exception e) {
-//            log.error("Непредвиденная ошибка при поиске файлов", e);
-//            return Collections.emptyList();
-//        }
-//    }
 
     /**
      * Утилитный метод для создания нового треда для экономии токенов и передачи в него резюме прошлого контекста общения, срабатывает после 10 вопросов в текущем треде

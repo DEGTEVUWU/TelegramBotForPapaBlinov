@@ -1,5 +1,6 @@
 package com.ivan_degtev.telegrambotforpapablinov.service.ai;
 
+import com.ivan_degtev.telegrambotforpapablinov.component.TelegramWebhookConfiguration;
 import com.ivan_degtev.telegrambotforpapablinov.mapper.OpenAiMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,12 +10,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -24,54 +28,56 @@ public class ProcessingSearchRequestsService {
     private String openAiToken;
     private final WebClient webClient;
     private final OpenAiMapper openAiMapper;
+    private final TelegramWebhookConfiguration telegramWebhookConfiguration;
 
-    private final static String ASSISTANT_ID = "asst_TMo9HU85ItAzi87f2fMeSheQ";
-    private final static String VECTOR_STORE_ID = "vs_wNzBgdtEtTf1cT1G6GifHZSn";
-    private final static String FILES_SAVE_PATH = "src/main/resources/files/";
+    private final static String PATH_FOR_SAVE_FILES = "src/main/resources/files";
 
     public ProcessingSearchRequestsService(
             @Value("${openai.token}") String openAiToken,
             OpenAiMapper openAiMapper,
-            WebClient.Builder webClient
+            WebClient.Builder webClient,
+            TelegramWebhookConfiguration telegramWebhookConfiguration
     ) {
         this.openAiToken = openAiToken;
         this.openAiMapper = openAiMapper;
         this.webClient = webClient
                 .baseUrl("https://api.openai.com")
                 .build();
+        this.telegramWebhookConfiguration = telegramWebhookConfiguration;
     }
 
-    public void preparingDataForDownloadingFiles(Map<String, String> filesData) {
+    /**
+     *  Основной метод для подготовки и поиска файлов
+     */
+    public void preparingDataForDownloadingFiles(Map<String, String> filesData, String chatId, Long replyToMessageId) {
         for (Map.Entry<String, String> file : filesData.entrySet()) {
-            downloadFile(file.getKey(), file.getValue());
+            searchFiles(file.getKey(), chatId, replyToMessageId);
         }
     }
 
-    public void downloadFile(String fileName, String fileId) {
-        try {
-            byte[] fileContent = webClient.get()
-                    .uri("/v1/files/{fileId}/content", fileId)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + openAiToken)
-                    .accept(MediaType.APPLICATION_OCTET_STREAM)
-                    .retrieve()
-                    .bodyToMono(byte[].class)
-                    .block();
+    /**
+     * Метод поиска файлов по имени
+     */
+    private void searchFiles(String fileName, String chatId, Long replyToMessageId) {
+        Path directoryPath = Paths.get(PATH_FOR_SAVE_FILES);
 
-            if (fileContent != null) {
-                saveFile(fileContent, fileName);
+        try (Stream<Path> secondFilesStream = Files.list(directoryPath)) {
+            Optional<File> matchingFile = secondFilesStream
+                    .map(Path::toFile)
+                    .filter(File::isFile)
+                    .filter(file -> file.getName().equalsIgnoreCase(fileName))
+                    .findFirst();
+
+            if (matchingFile.isPresent()) {
+                File file = matchingFile.get();
+                log.info("Файл найден: {}", file.getName());
+                telegramWebhookConfiguration.sendDocument(chatId, file, replyToMessageId);
             } else {
-                System.err.println("Файл не был получен.");
+                log.warn("Файл не найден: {}", fileName);
+                telegramWebhookConfiguration.sendResponseMessage(chatId, "Файл с именем " + fileName + " не найден", replyToMessageId);
             }
-        } catch (WebClientResponseException e) {
-            System.err.println("Ошибка при скачивании файла: " + e.getResponseBodyAsString());
-        } catch (Exception e) {
-            System.err.println("Неожиданная ошибка при скачивании файла: " + e.getMessage());
+        } catch (IOException e) {
+            log.error("Ошибка при поиске файлов: {}", e.getMessage());
         }
-    }
-
-    private void saveFile(byte[] fileContent, String fileName) throws IOException {
-        Path path = Paths.get(FILES_SAVE_PATH + fileName);
-        Files.write(path, fileContent, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        log.info("Файл успешно сохранен по пути: " + path);
     }
 }

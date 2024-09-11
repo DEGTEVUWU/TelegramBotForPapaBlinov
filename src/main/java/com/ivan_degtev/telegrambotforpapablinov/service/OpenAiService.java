@@ -11,14 +11,14 @@ public interface OpenAiService {
       */
      void getAnswerFromLlm(String chatId, String fromId, String question, Long replayMessageId, boolean isSearchRequest);
 
-     /**
-      *
-      * Метод для поиска в ембендинговой БД и выдачи валдиных файлов по запросу юзера
-      */
-     void searchFilesForRequest(String query);
-
-     /**
-      * Метод для отправки обычных сообщений от LLM в чаты или группы
-      */
-     void sendMessage(String chatId, String answer, Long replayMessageId);
+//     /**
+//      *
+//      * Метод для поиска в ембендинговой БД и выдачи валдиных файлов по запросу юзера
+//      */
+//     void searchFilesForRequest(String query);
+//
+//     /**
+//      * Метод для отправки обычных сообщений от LLM в чаты или группы
+//      */
+//     void sendMessage(String chatId, String answer, Long replayMessageId);
 }

@@ -13,6 +13,9 @@ ngrok:
 openai:
   token: ${OPEN_AI_TOKEN:default_value_if_not_set}
 
+notion:
+  api:
+    token: ${NOTION_API_TOKEN:default_value_if_not_set}
 
 
 
