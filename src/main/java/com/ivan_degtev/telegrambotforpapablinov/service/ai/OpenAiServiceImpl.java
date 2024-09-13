@@ -18,8 +18,8 @@ public class OpenAiServiceImpl implements OpenAiService {
     private final ProcessingSearchRequestsService processingSearchRequestsService;
 
     @Override
-    public void getAnswerFromLlm(String chatId, String fromId, String question, Long replayMessageId, boolean isSearchRequest) {
-        processingRegularRequestsService.createRequestGetResponse(chatId, Long.valueOf(fromId), question, replayMessageId, isSearchRequest);
+    public void getAnswerFromLlm(String chatId, String fromId, String question, Long replayMessageId) {
+        processingRegularRequestsService.createRequestGetResponse(chatId, Long.valueOf(fromId), question, replayMessageId);
 //        log.info("Ответ от ллм {}", llmAnswer);
 
 //        sendMessage(chatId, llmAnswer, replayMessageId);

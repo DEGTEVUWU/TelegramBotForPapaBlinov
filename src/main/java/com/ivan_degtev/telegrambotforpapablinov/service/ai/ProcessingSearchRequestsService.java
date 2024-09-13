@@ -74,7 +74,6 @@ public class ProcessingSearchRequestsService {
                 telegramWebhookConfiguration.sendDocument(chatId, file, replyToMessageId);
             } else {
                 log.warn("Файл не найден: {}", fileName);
-                telegramWebhookConfiguration.sendResponseMessage(chatId, "Файл с именем " + fileName + " не найден", replyToMessageId);
             }
         } catch (IOException e) {
             log.error("Ошибка при поиске файлов: {}", e.getMessage());

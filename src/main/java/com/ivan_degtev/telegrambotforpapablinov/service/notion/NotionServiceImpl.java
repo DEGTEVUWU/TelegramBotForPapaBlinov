@@ -89,19 +89,37 @@ public class NotionServiceImpl {
         }
 
         fileMap.forEach((fileName, fileUrl) -> {
-            try {
-                downloadFile(fileUrl, targetDirectory.resolve(fileName));
-                String successMsg = "Файл " + fileName + " успешно загружен.";
-                log.info(successMsg);
-                results.add(successMsg);
-            } catch (IOException e) {
-                String errorMsg = "Ошибка загрузки файла " + fileName + ": " + e.getMessage();
-                log.error(errorMsg);
-                results.add(errorMsg);
+            Path filePath = targetDirectory.resolve(fileName);
+
+            if (!isFileExists(filePath)) {
+                try {
+                    downloadFile(fileUrl, filePath);
+                    String successMsg = "Файл " + fileName + " успешно загружен.";
+                    log.info(successMsg);
+                    results.add(successMsg);
+                } catch (IOException e) {
+                    String errorMsg = "Ошибка загрузки файла " + fileName + ": " + e.getMessage();
+                    log.error(errorMsg);
+                    results.add(errorMsg);
+                }
+            } else {
+                String infoMsg = "Файл " + fileName + " уже существует, загрузка пропущена.";
+                log.info(infoMsg);
+                results.add(infoMsg);
             }
         });
 
         return results;
+    }
+
+    /**
+     * Проверяет, существует ли файл по указанному пути.
+     *
+     * @param filePath путь к файлу
+     * @return true, если файл существует; false, если нет
+     */
+    private boolean isFileExists(Path filePath) {
+        return Files.exists(filePath);
     }
 
     /**

@@ -9,7 +9,7 @@ public interface OpenAiService {
      /**
       * Обычный запрос к ллм текстом , запоминается айди юзера для истории и айди чата для верной отправки в чат(если он есть)
       */
-     void getAnswerFromLlm(String chatId, String fromId, String question, Long replayMessageId, boolean isSearchRequest);
+     void getAnswerFromLlm(String chatId, String fromId, String question, Long replayMessageId);
 
 //     /**
 //      *

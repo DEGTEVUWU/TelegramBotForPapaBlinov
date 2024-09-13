@@ -1,8 +1,10 @@
 package com.ivan_degtev.telegrambotforpapablinov.service.ai;
 
 import com.ivan_degtev.telegrambotforpapablinov.component.TelegramWebhookConfiguration;
+import com.ivan_degtev.telegrambotforpapablinov.dto.TYPE_REQUEST;
 import com.ivan_degtev.telegrambotforpapablinov.exception.LlmQuerySyntaxException;
 import com.ivan_degtev.telegrambotforpapablinov.mapper.OpenAiMapper;
+import com.ivan_degtev.telegrambotforpapablinov.service.impl.RedisServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -31,13 +33,15 @@ public class ProcessingRegularRequestsService {
 
     @Lazy private final OpenAiMemoryControlServiceImpl openAiMemoryControlService;
     private final ProcessingSearchRequestsService processingSearchRequestsService;
+    private final RedisServiceImpl redisService;
 
     private final static String ASSISTANT_ID = "asst_TMo9HU85ItAzi87f2fMeSheQ";
     private final static String VECTOR_STORE_ID = "vs_wNzBgdtEtTf1cT1G6GifHZSn";
     private final static String SYSTEM_MESSAGE_FOR_SEARCH_ID_FILES = """
             Пользователь ищет актуальные файлы из векторного хранилища по своему запросу. Тебе нужно проанализировать его запрос, найти 5 самых подходящих файла 
-            и выдать только их внутренние названия и id без изменений! Выдать нужно в формате json, но без изменения названий файлов! 
-            Пример: \"Имя файла в хранилище.docx\":\"id_файла_в_хранилище\".
+            и выдать только их внутренние названия и id без изменений! Выдать нужно в формате json, но без изменения названий файлов! Нужно записать в json название
+            файла точь-в-точь, как оно называется в твоем внутреннем хранилище! 
+            Пример: \"Имя файла во внутреннем хранилище.docx\":\"id_файла_в_хранилище\".
             """;
 
     private final static Map<Long, String> userThreads = new HashMap<>();
@@ -49,7 +53,9 @@ public class ProcessingRegularRequestsService {
             WebClient.Builder webClient,
             @Lazy OpenAiMemoryControlServiceImpl openAiMemoryControlService,
             ProcessingSearchRequestsService processingSearchRequestsService,
-            TelegramWebhookConfiguration telegramWebhookConfiguration) {
+            TelegramWebhookConfiguration telegramWebhookConfiguration,
+            RedisServiceImpl redisService
+    ) {
         this.openAiToken = openAiToken;
         this.openAiMapper = openAiMapper;
         this.webClient = webClient
@@ -58,23 +64,38 @@ public class ProcessingRegularRequestsService {
         this.openAiMemoryControlService = openAiMemoryControlService;
         this.processingSearchRequestsService = processingSearchRequestsService;
         this.telegramWebhookConfiguration = telegramWebhookConfiguration;
+        this.redisService = redisService;
     }
 
-    public void createRequestGetResponse(String chatId, Long fromId, String question, Long replayMessageId, boolean isSearchRequest) {
+    public void createRequestGetResponse(String chatId, Long fromId, String question, Long replayMessageId) {
         try {
-            String threadId = userThreads.get(fromId);
+//            String threadId = userThreads.get(fromId);
+//            TYPE_REQUEST currentTypeRequest = redisService.getUserRequestType(String.valueOf(fromId));
+//
+//            if (threadId == null) {
+//                String jsonResponseCreateThread = createThread(fromId);
+//                threadId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateThread);
+//
+//                userThreads.put(fromId, threadId);
+//                addAndCleanHistoryMessage(fromId);
+//            } else {
+//                addAndCleanHistoryMessage(fromId);
+//                threadId = userThreads.get(fromId);
+//            }
+            String threadId = redisService.getUserThread(String.valueOf(fromId));
+            TYPE_REQUEST currentTypeRequest = redisService.getUserRequestType(String.valueOf(fromId));
+
             if (threadId == null) {
                 String jsonResponseCreateThread = createThread(fromId);
                 threadId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateThread);
 
-                userThreads.put(fromId, threadId);
-                addAndCleanHistoryMessage(fromId);
+                redisService.setUserThread(String.valueOf(fromId), threadId);
+                addAndCleanHistoryMessage(String.valueOf(fromId));
             } else {
-                addAndCleanHistoryMessage(fromId);
-                threadId = userThreads.get(fromId);
+                addAndCleanHistoryMessage(String.valueOf(fromId));
             }
 
-            String jsonResponseCreateMessage = createResponseMessage(threadId, question, isSearchRequest);
+            String jsonResponseCreateMessage = createResponseMessage(currentTypeRequest, threadId, question);
             String responseMessageId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateMessage);
 
             String jsonResponseCreateRun = runThread(threadId);
@@ -86,7 +107,8 @@ public class ProcessingRegularRequestsService {
 
                 String jsonResponseGetMessage = getMessage(threadId, responseIdAnswer);
                 String responseLlm = openAiMapper.extractDataFromLlmAnswer(jsonResponseGetMessage);
-                if (isSearchRequest) {
+
+                if (currentTypeRequest.equals(TYPE_REQUEST.SEARCH)) {
                     Map<String, String> filesData = openAiMapper.extractFileIds(responseLlm);
                     processingSearchRequestsService.preparingDataForDownloadingFiles(filesData, chatId, replayMessageId);
                     return;
@@ -98,30 +120,49 @@ public class ProcessingRegularRequestsService {
         } catch (LlmQuerySyntaxException ex) {
             throw new LlmQuerySyntaxException("Ошибка в последовательности запросов к Open AI для работы с ассистентом");
         }
-        throw new LlmQuerySyntaxException("Ошибка в последовательности запросов к Open AI для работы с ассистентом");
     }
 
     /**
      * метод проверяет кол-во записей в мапе по id чата, когда оно равно 10  - создаётся новый тред и отсчет начинается заново(для экономии токенов)
      */
-    public void addAndCleanHistoryMessage(Long chatId) {
-        if (summaryMessagesForUser.get(chatId) == null) {
-            summaryMessagesForUser.put(chatId, 1);
-        } else if (summaryMessagesForUser.get(chatId) != null && summaryMessagesForUser.get(chatId) < 10) {
-            summaryMessagesForUser.put(chatId, summaryMessagesForUser.get(chatId) + 1);
-        } else if (summaryMessagesForUser.get(chatId) != null && summaryMessagesForUser.get(chatId) == 10) {
-            String summaryMessages = openAiMemoryControlService.generateManualSummary(userThreads.get(chatId));
+    public void addAndCleanHistoryMessage(String fromId) {
+        int currentMessageCount = redisService.getUserMessageCount(fromId);
 
-            deleteOldThread(userThreads.get(chatId));
+        if (currentMessageCount == 0) {
+            redisService.incrementUserMessageCount(fromId);
+        } else if (currentMessageCount < 10) {
+            redisService.incrementUserMessageCount(fromId);
+        } else if (currentMessageCount == 10) {
+            String summaryMessages = openAiMemoryControlService.generateManualSummary(redisService.getUserThread(fromId));
+
+            deleteOldThread(fromId);
 
             String jsonResponseCreateThread = createNewThreadWithSummary(summaryMessages);
             String threadId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateThread);
 
-            userThreads.put(chatId, threadId);
-            summaryMessagesForUser.put(chatId, 1);
-            log.info("Записан новый id треда после переполнения прошлого {}", userThreads.get(chatId));
+            redisService.setUserThread(fromId, threadId);
+            redisService.resetUserMessageCount(fromId);
+            log.info("Записан новый id треда после переполнения прошлого {}", redisService.getUserThread(fromId));
         }
     }
+//    public void addAndCleanHistoryMessage(Long chatId) {
+//        if (summaryMessagesForUser.get(chatId) == null) {
+//            summaryMessagesForUser.put(chatId, 1);
+//        } else if (summaryMessagesForUser.get(chatId) != null && summaryMessagesForUser.get(chatId) < 10) {
+//            summaryMessagesForUser.put(chatId, summaryMessagesForUser.get(chatId) + 1);
+//        } else if (summaryMessagesForUser.get(chatId) != null && summaryMessagesForUser.get(chatId) == 10) {
+//            String summaryMessages = openAiMemoryControlService.generateManualSummary(userThreads.get(chatId));
+//
+//            deleteOldThread(userThreads.get(chatId));
+//
+//            String jsonResponseCreateThread = createNewThreadWithSummary(summaryMessages);
+//            String threadId = openAiMapper.extractIdAfterCreateResponseMessage(jsonResponseCreateThread);
+//
+//            userThreads.put(chatId, threadId);
+//            summaryMessagesForUser.put(chatId, 1);
+//            log.info("Записан новый id треда после переполнения прошлого {}", userThreads.get(chatId));
+//        }
+//    }
     /**
      * Метод проверяет внесен ли в общий тред ответ от ллм, когда это происходит - он отдаёт айди этого сообщения
      * @return
@@ -177,16 +218,20 @@ public class ProcessingRegularRequestsService {
         return response;
     }
 
-    public String deleteOldThread(String threadId) {
+    public String deleteOldThread(String fromId) {
+        String threadId = redisService.getUserThread(fromId);
+
         String response = webClient.delete()
                 .uri(uriBuilder -> uriBuilder
                         .path("/v1/threads/{threadId}")
                         .build(threadId))
                 .header("Authorization", "Bearer " + openAiToken)
                 .header("Content-Type", "application/json")
+                .header("OpenAI-Beta", "assistants=v2")
                 .retrieve()
                 .bodyToMono(String.class)
                 .block();
+        redisService.deleteOldThread(fromId);
         return response;
     }
 
@@ -233,12 +278,11 @@ public class ProcessingRegularRequestsService {
     /**
      * Метод по созданию сообщения-вопрос к ллм, для помещения его после в тред
      */
-    public String createResponseMessage(String threadId, String userMessage, boolean isSearchRequest) {
+    public String createResponseMessage(TYPE_REQUEST currentTypeId, String threadId, String userMessage) {
         Map<String, String> messages = new HashMap<>();
 
-        if (isSearchRequest) {
+        if (currentTypeId.equals(TYPE_REQUEST.SEARCH)) {
             messages = Map.of("role", "user", "content", SYSTEM_MESSAGE_FOR_SEARCH_ID_FILES + "Запрос пользователя: " + userMessage);
-//            messages.add(Map.of("role", "user", "content", "Запрос пользователя на поиск: " + userMessage));
         } else {
             messages = Map.of("role", "user", "content", userMessage);
         }

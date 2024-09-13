@@ -50,6 +50,9 @@ public class WebhookPayloadDto {
         private MessageDto replyToMessage; // Сообщение, на которое идет ответ
 
 
+        @JsonProperty("document")
+        private Document document;
+
         @JsonProperty("new_chat_participant")
         private UserDto newChatParticipant; // Новый участник чата
 
@@ -64,6 +67,23 @@ public class WebhookPayloadDto {
 
         @JsonProperty("new_chat_members")
         private List<UserDto> newChatMembers; // Список новых участников чата
+    }
+
+    /**
+     * Класс для хранения данных об отрпавленном(в нашей логике только ботом) файлах.
+     */
+    @Data
+    public static class Document {
+        @JsonProperty("file_name")
+        private String fileName;
+        @JsonProperty("mime_type")
+        private String mimeType;
+        @JsonProperty("file_id")
+        private String fileId;
+        @JsonProperty("file_unique_id")
+        private String fileUniqueId;
+        @JsonProperty("file_size")
+        private String fileSize;
     }
 
     @Data
@@ -91,7 +111,10 @@ public class WebhookPayloadDto {
 
         private UserDto user;
 
-        private String status; // Статус пользователя (например, "member", "left", "administrator")
+        private String status;
+
+        @JsonProperty("is_premium")
+        private String isPremium;
 
         // Права администратора
         @JsonProperty("can_be_edited")
@@ -160,6 +183,9 @@ public class WebhookPayloadDto {
 
         @JsonProperty("language_code")
         private String languageCode;
+
+        @JsonProperty("is_premium")
+        private String isPremium;
     }
 
     @Data
@@ -176,6 +202,9 @@ public class WebhookPayloadDto {
         private String type;
 
         private String title;
+
+        @JsonProperty("is_premium")
+        private String isPremium;
     }
 
     @Data

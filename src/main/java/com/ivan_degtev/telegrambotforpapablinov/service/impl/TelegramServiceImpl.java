@@ -44,8 +44,15 @@ public class TelegramServiceImpl implements TelegramService {
             if (triggersForBotService.handleMessage(webhookPayloadDto)) {
                 Long replayMessageId = triggersForBotService.getIdMessageForReplay(webhookPayloadDto);
 
-                boolean isSearchRequest = triggersForBotService.isSearchRequest(webhookPayloadDto);
-                openAiServiceImpl.getAnswerFromLlm(chatId, fromId, textMessage, replayMessageId, isSearchRequest);
+                triggersForBotService.isSearchRequest(fromId, textMessage);
+
+                boolean commandExist = triggersForBotService.searchAndHandleCommand(webhookPayloadDto);
+
+                if (!commandExist) {
+                    openAiServiceImpl.getAnswerFromLlm(chatId, fromId, textMessage, replayMessageId);
+                    log.info("Команд не было в сообщение - оно ушло в обработку LLM {}", textMessage);
+                }
+                log.info("Были оправлены сообщения команд в чат");
             }
         } else {
             log.info("Получено сообщение без текста или это системное сообщение. {}", webhookPayloadDto.toString());

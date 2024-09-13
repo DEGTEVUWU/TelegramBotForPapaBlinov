@@ -46,4 +46,11 @@ public class AIController {
                 .ok()
                 .body(response);
     }
+    @DeleteMapping(path = "/delete_old_thread/{threadId}")
+    public ResponseEntity<String> createOldThread(@PathVariable String threadId) {
+        String response = processingRegularRequestsService.deleteOldThread(threadId);
+        return ResponseEntity
+                .ok()
+                .body(response);
+    }
 }
