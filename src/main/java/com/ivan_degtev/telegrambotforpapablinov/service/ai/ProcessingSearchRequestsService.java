@@ -16,8 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -30,7 +33,8 @@ public class ProcessingSearchRequestsService {
     private final OpenAiMapper openAiMapper;
     private final TelegramWebhookConfiguration telegramWebhookConfiguration;
 
-    private final static String PATH_FOR_SAVE_FILES = "src/main/resources/files";
+    //    private final static String PATH_FOR_SAVE_FILES = "src/main/resources/files";
+    private final static String PATH_FOR_SAVE_FILES = "/app/files";
 
     public ProcessingSearchRequestsService(
             @Value("${openai.token}") String openAiToken,
@@ -47,7 +51,7 @@ public class ProcessingSearchRequestsService {
     }
 
     /**
-     *  Основной метод для подготовки и поиска файлов
+     * Основной метод для подготовки и поиска файлов
      */
     public void preparingDataForDownloadingFiles(Map<String, String> filesData, String chatId, Long replyToMessageId) {
         for (Map.Entry<String, String> file : filesData.entrySet()) {
@@ -60,12 +64,16 @@ public class ProcessingSearchRequestsService {
      */
     private void searchFiles(String fileName, String chatId, Long replyToMessageId) {
         Path directoryPath = Paths.get(PATH_FOR_SAVE_FILES);
+        List<String> possibleFileNames = prepareNamesWithAllExtensions(fileName);
 
         try (Stream<Path> secondFilesStream = Files.list(directoryPath)) {
             Optional<File> matchingFile = secondFilesStream
                     .map(Path::toFile)
                     .filter(File::isFile)
-                    .filter(file -> file.getName().equalsIgnoreCase(fileName))
+                    .filter(file -> {
+                        return possibleFileNames.stream()
+                                .anyMatch(possibleName -> file.getName().equalsIgnoreCase(possibleName));
+                    })
                     .findFirst();
 
             if (matchingFile.isPresent()) {
@@ -78,5 +86,28 @@ public class ProcessingSearchRequestsService {
         } catch (IOException e) {
             log.error("Ошибка при поиске файлов: {}", e.getMessage());
         }
+    }
+    private List<String> prepareNamesWithAllExtensions(String fileName) {
+        String baseFileName = fileName.substring(0, fileName.lastIndexOf('.'));
+        String fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
+
+        log.info("Зашёл в метод двойного названию, имя файла: и расширение: {}, {}", fileName, fileExtension);
+
+        List<String> possibleFileNames = new ArrayList<>();
+        possibleFileNames.add(fileName);
+
+        if (fileExtension.equalsIgnoreCase("doc")) {
+            possibleFileNames.add(baseFileName + ".docx");
+        } else if (fileExtension.equalsIgnoreCase("docx")) {
+            possibleFileNames.add(baseFileName + ".doc");
+        } else if (fileExtension.equalsIgnoreCase("xls")) {
+            possibleFileNames.add(baseFileName + ".xlsx");
+        } else if (fileExtension.equalsIgnoreCase("xlsx")) {
+            possibleFileNames.add(baseFileName + ".xls");
+        }
+
+        log.info("Итоговая мапа с разными вариантами названий с расширениями: {}",
+                possibleFileNames.stream().collect(Collectors.joining(", ")));
+        return possibleFileNames;
     }
 }

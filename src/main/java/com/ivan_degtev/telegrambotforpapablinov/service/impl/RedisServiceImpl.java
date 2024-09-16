@@ -15,18 +15,20 @@ import java.time.Duration;
 public class RedisServiceImpl implements UpdateIdService {
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private static final String KEY_PREFIX = "update_id:";
-    private static final String FROM_ID = "from_id:";
 
-    private static final String THREADS_KEY = "user:threads";
-    private static final String MESSAGES_COUNT_KEY = "user:messagesCount";
+    private static final String UPDATE_ID_PREFIX = "update_id:";
+    private static final String TYPE_REQUEST_FROM_ID = "from_id:";
+
+    private static final String ID_ACTUAL_THREAD = "user:threads:";
+    private static final String MESSAGES_COUNT_KEY = "user:messagesCount:";
+
     /**
      * Для фильтрации множественной отправки дублей из нгрока, пропускает только 1 апдейт с уник айди
      * @param updateId
      * @return
      */
     public boolean isUniqueUpdateId(Long updateId) {
-        Boolean isNew = redisTemplate.opsForValue().setIfAbsent(KEY_PREFIX + updateId, "1", Duration.ofHours(24));
+        Boolean isNew = redisTemplate.opsForValue().setIfAbsent(UPDATE_ID_PREFIX + updateId, "1", Duration.ofHours(24));
         return Boolean.TRUE.equals(isNew);
     }
 
@@ -34,7 +36,7 @@ public class RedisServiceImpl implements UpdateIdService {
      * Сохраняет тип запроса для каждою юзера - нужно для понимая идет обычный диалог или запрос на выкачку файлов
      */
     public void saveUserRequestType(String fromId, TYPE_REQUEST typeRequest) {
-        redisTemplate.opsForValue().set(FROM_ID + fromId, typeRequest, Duration.ofHours(72));
+        redisTemplate.opsForValue().set(TYPE_REQUEST_FROM_ID + fromId, typeRequest, Duration.ofHours(72));
         log.info("Сохранен тип запроса для пользователя {}: {}", fromId, typeRequest);
     }
 
@@ -42,7 +44,7 @@ public class RedisServiceImpl implements UpdateIdService {
      * Возвращает текущий тип диалога для дальнейше работой с ллм
      */
     public TYPE_REQUEST getUserRequestType(String fromId) {
-        TYPE_REQUEST typeRequest = (TYPE_REQUEST) redisTemplate.opsForValue().get(FROM_ID + fromId);
+        TYPE_REQUEST typeRequest = (TYPE_REQUEST) redisTemplate.opsForValue().get(TYPE_REQUEST_FROM_ID + fromId);
 
         if (typeRequest != null) {
             log.info("Найден тип запроса для пользователя {}: {}", fromId, typeRequest);
@@ -58,33 +60,41 @@ public class RedisServiceImpl implements UpdateIdService {
      */
     // Получение треда пользователя
     public String getUserThread(String fromId) {
-        return (String) redisTemplate.opsForHash().get(THREADS_KEY, fromId);
+        return (String) redisTemplate.opsForValue().get(ID_ACTUAL_THREAD + fromId);
     }
 
     // Сохранение треда пользователя
     public void setUserThread(String fromId, String threadId) {
-        redisTemplate.opsForHash().put(THREADS_KEY, fromId, threadId);
+        redisTemplate.opsForValue().set(ID_ACTUAL_THREAD + fromId, threadId);
     }
 
     // Получение количества сообщений пользователя
-    public int getUserMessageCount(String fromId) {
-        String count = (String) redisTemplate.opsForHash().get(MESSAGES_COUNT_KEY, fromId);
-        return count != null ? Integer.parseInt(count) : 0;
+    public String getUserMessageCount(String fromId) {
+        String countStr = (String) redisTemplate.opsForValue().get(MESSAGES_COUNT_KEY + fromId);
+//        Integer count = countStr != null ? Integer.parseInt(countStr) : 0;
+        log.info("Получил данные о кол-ве сообщений у конкретного юзера с id {} в треде из редиса {}", fromId, countStr);
+        return countStr;
     }
 
     // Инкремент количества сообщений
-    public void incrementUserMessageCount(String fromId) {
-        redisTemplate.opsForHash().increment(MESSAGES_COUNT_KEY, fromId, 1);
+//    public void incrementUserMessageCount(String fromId) {
+//        if (redisTemplate.opsForValue().get(MESSAGES_COUNT_KEY + fromId) == null) {
+//            redisTemplate.opsForValue().set(MESSAGES_COUNT_KEY + fromId, "0");
+//        }
+//        redisTemplate.opsForValue().increment(MESSAGES_COUNT_KEY + fromId, 1);
+//    }
+    public void incrementUserMessageCount(String fromId, String currentCount) {
+        redisTemplate.opsForValue().set(MESSAGES_COUNT_KEY + fromId, currentCount);
     }
 
     // Сброс количества сообщений
     public void resetUserMessageCount(String fromId) {
-        redisTemplate.opsForHash().put(MESSAGES_COUNT_KEY, fromId, "1");
+        redisTemplate.opsForValue().set(MESSAGES_COUNT_KEY + fromId, "1");
     }
 
     // Удаление старого треда и связанной информации
     public void deleteOldThread(String fromId) {
-        redisTemplate.opsForHash().delete(THREADS_KEY, fromId);
-        redisTemplate.opsForHash().delete(MESSAGES_COUNT_KEY, fromId);
+        redisTemplate.delete(ID_ACTUAL_THREAD + fromId);
+        redisTemplate.delete(MESSAGES_COUNT_KEY + fromId);
     }
 }

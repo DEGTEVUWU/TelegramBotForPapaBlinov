@@ -1,6 +1,11 @@
 spring:
   application.name: TelegramBotForPapaBlinov
 
+  data:
+    redis:
+      host: redis
+      port: 6379
+
 telegram:
   bot:
     username: Papa_Blinov_Bot

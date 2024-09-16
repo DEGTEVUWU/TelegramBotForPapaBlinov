@@ -41,6 +41,8 @@ public class WebhookPayloadDto {
         @JsonProperty("entities")
         private List<EntityDto> entities;
 
+        @JsonProperty("link_preview_options")
+        private LinkPreviewOptions linkPreviewOptions;
 
         //Эти два поля используются для обработки сообщений в ответ на другие сообщения
         @JsonProperty("message_thread_id")
@@ -69,6 +71,11 @@ public class WebhookPayloadDto {
         private List<UserDto> newChatMembers; // Список новых участников чата
     }
 
+    @Data
+    public static class LinkPreviewOptions {
+        @JsonProperty("url")
+        private String url;
+    }
     /**
      * Класс для хранения данных об отрпавленном(в нашей логике только ботом) файлах.
      */

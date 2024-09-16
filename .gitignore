@@ -6,7 +6,7 @@ target/
 src/main/resources/google/oauth/
 src/main/resources/files/
 /logs
-
+.env
 
 ### STS ###
 .apt_generated

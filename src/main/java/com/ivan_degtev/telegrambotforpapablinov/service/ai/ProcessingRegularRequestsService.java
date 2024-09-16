@@ -35,8 +35,7 @@ public class ProcessingRegularRequestsService {
     private final ProcessingSearchRequestsService processingSearchRequestsService;
     private final RedisServiceImpl redisService;
 
-    private final static String ASSISTANT_ID = "asst_TMo9HU85ItAzi87f2fMeSheQ";
-    private final static String VECTOR_STORE_ID = "vs_wNzBgdtEtTf1cT1G6GifHZSn";
+    private final static String ASSISTANT_ID = "asst_sjTPLRG9rc6VvOgINmjn5mOK";
     private final static String SYSTEM_MESSAGE_FOR_SEARCH_ID_FILES = """
             Пользователь ищет актуальные файлы из векторного хранилища по своему запросу. Тебе нужно проанализировать его запрос, найти 5 самых подходящих файла 
             и выдать только их внутренние названия и id без изменений! Выдать нужно в формате json, но без изменения названий файлов! Нужно записать в json название
@@ -126,12 +125,16 @@ public class ProcessingRegularRequestsService {
      * метод проверяет кол-во записей в мапе по id чата, когда оно равно 10  - создаётся новый тред и отсчет начинается заново(для экономии токенов)
      */
     public void addAndCleanHistoryMessage(String fromId) {
-        int currentMessageCount = redisService.getUserMessageCount(fromId);
+        String countStr = redisService.getUserMessageCount(fromId);
+        int currentMessageCount = (countStr != null && !countStr.isEmpty()) ? Integer.parseInt(countStr) : 0;
+        log.info("Получил в сервис данные о кол-ве сообщений в треде и замапил в инт {}", currentMessageCount);
 
         if (currentMessageCount == 0) {
-            redisService.incrementUserMessageCount(fromId);
+//            redisService.incrementUserMessageCount(fromId);
+            redisService.incrementUserMessageCount(fromId, String.valueOf(currentMessageCount + 1));
         } else if (currentMessageCount < 10) {
-            redisService.incrementUserMessageCount(fromId);
+//            redisService.incrementUserMessageCount(fromId);
+            redisService.incrementUserMessageCount(fromId, String.valueOf(currentMessageCount + 1));
         } else if (currentMessageCount == 10) {
             String summaryMessages = openAiMemoryControlService.generateManualSummary(redisService.getUserThread(fromId));
 
@@ -206,6 +209,7 @@ public class ProcessingRegularRequestsService {
                 .uri("/v1/threads")
                 .header("Authorization", "Bearer " + openAiToken)
                 .header("Content-Type", "application/json")
+                .header("OpenAI-Beta", "assistants=v2")
                 .bodyValue(Map.of(
                         "assistant_id", ASSISTANT_ID,
                         "messages", List.of(
